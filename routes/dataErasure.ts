@@ -101,9 +101,24 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
       }
 
       if (req.body.layout) {
+        if (typeof req.body.layout !== 'string' || req.body.layout.includes('\0')) {
+          next(new Error('File access not allowed'))
+          return
+        }
+        const rootPath = path.resolve('.')
+        const viewsPath = typeof req.app?.get === 'function' && typeof req.app.get('views') === 'string'
+          ? path.resolve(req.app.get('views'))
+          : path.resolve('views')
+        const resolvedPath = path.resolve(viewsPath, req.body.layout)
+        const relativeToRoot = path.relative(rootPath, resolvedPath)
+        const isOutsideRoot = relativeToRoot.startsWith('..') || path.isAbsolute(relativeToRoot) || relativeToRoot === ''
         const filePath: string = path.resolve(req.body.layout).toLowerCase()
-        const isForbiddenFile: boolean = (filePath.includes('ftp') || filePath.includes('ctf.key') || filePath.includes('encryptionkeys'))
-        if (!isForbiddenFile) {
+        const resolvedPathLower: string = resolvedPath.toLowerCase()
+        const isForbiddenFile: boolean = (
+          filePath.includes('ftp') || filePath.includes('ctf.key') || filePath.includes('encryptionkeys') ||
+          resolvedPathLower.includes('ftp') || resolvedPathLower.includes('ctf.key') || resolvedPathLower.includes('encryptionkeys')
+        )
+        if (!isOutsideRoot && !isForbiddenFile) {
           res.render('dataErasureResult', {
             ...req.body,
             ...themeVars
